@@ -493,7 +493,8 @@ public:
 		{if (!parameters.GetValue("OutputStringPointer", m_output)) throw InvalidArgument("StringSink: OutputStringPointer not specified");}
 	unsigned int Put2(const byte *begin, unsigned int length, int messageEnd, bool blocking)
 	{
-		m_output->append((const char_type *)begin, (const char_type *)begin+length);
+		if (length > 0)
+			m_output->append((const char_type *)begin, (const char_type *)begin+length);
 		return 0;
 	}
 
