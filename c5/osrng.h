@@ -96,6 +96,8 @@ public:
 	explicit AutoSeededX917RNG(bool blocking = false)
 		{Reseed(blocking);}
 	void Reseed(bool blocking = false);
+	// exposed for testing
+	void Reseed(const byte *key, unsigned int keylength, const byte *seed, unsigned long timeVector);
 
 	byte GenerateByte();
 
@@ -105,6 +107,18 @@ private:
 	bool m_isDifferent;
 	unsigned int m_counter;
 };
+
+template <class BLOCK_CIPHER>
+void AutoSeededX917RNG<BLOCK_CIPHER>::Reseed(const byte *key, unsigned int keylength, const byte *seed, unsigned long timeVector)
+{
+	m_rng.reset(new X917RNG(new typename BLOCK_CIPHER::Encryption(key, keylength), seed, timeVector));
+
+	// for FIPS 140-2
+	m_lastBlock.resize(16);
+	m_rng->GenerateBlock(m_lastBlock, m_lastBlock.size());
+	m_counter = 0;
+	m_isDifferent = false;
+}
 
 template <class BLOCK_CIPHER>
 void AutoSeededX917RNG<BLOCK_CIPHER>::Reseed(bool blocking)
@@ -117,15 +131,8 @@ void AutoSeededX917RNG<BLOCK_CIPHER>::Reseed(bool blocking)
 		key = seed + BLOCK_CIPHER::BLOCKSIZE;
 	}	// check that seed and key don't have same value
 	while (memcmp(key, seed, STDMIN((unsigned int)BLOCK_CIPHER::BLOCKSIZE, (unsigned int)BLOCK_CIPHER::DEFAULT_KEYLENGTH)) == 0);
-	m_rng.reset(new X917RNG(new typename BLOCK_CIPHER::Encryption(key, BLOCK_CIPHER::DEFAULT_KEYLENGTH), seed));
 
-	if (FIPS_140_2_ComplianceEnabled())
-	{
-		m_lastBlock.resize(16);
-		m_rng->GenerateBlock(m_lastBlock, m_lastBlock.size());
-		m_counter = 0;
-		m_isDifferent = false;
-	}
+	Reseed(key, BLOCK_CIPHER::DEFAULT_KEYLENGTH, seed, 0);
 }
 
 template <class BLOCK_CIPHER>
@@ -133,18 +140,16 @@ byte AutoSeededX917RNG<BLOCK_CIPHER>::GenerateByte()
 {
 	byte b = m_rng->GenerateByte();
 
-	if (FIPS_140_2_ComplianceEnabled())
+	// for FIPS 140-2
+	m_isDifferent = m_isDifferent || b != m_lastBlock[m_counter];
+	m_lastBlock[m_counter] = b;
+	++m_counter;
+	if (m_counter == m_lastBlock.size())
 	{
-		m_isDifferent = m_isDifferent || b != m_lastBlock[m_counter];
-		m_lastBlock[m_counter] = b;
-		++m_counter;
-		if (m_counter == m_lastBlock.size())
-		{
-			if (!m_isDifferent)
-				throw SelfTestFailure("AutoSeededX917RNG: Continuous random number generator test failed.");
-			m_counter = 0;
-			m_isDifferent = false;
-		}
+		if (!m_isDifferent)
+			throw SelfTestFailure("AutoSeededX917RNG: Continuous random number generator test failed.");
+		m_counter = 0;
+		m_isDifferent = false;
 	}
 
 	return b;

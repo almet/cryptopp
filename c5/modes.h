@@ -9,6 +9,7 @@
 #include "misc.h"
 #include "strciphr.h"
 #include "argnames.h"
+#include "algparam.h"
 
 NAMESPACE_BEGIN(CryptoPP)
 
@@ -142,19 +143,7 @@ class CTR_ModePolicy : public ModePolicyCommonTemplate<AdditiveCipherAbstractPol
 	void SeekToIteration(dword iterationCount);
 	IV_Requirement IVRequirement() const {return STRUCTURED_IV;}
 
-	static inline void IncrementCounterByOne(byte *output, const byte *input, unsigned int s)
-	{
-		for (int i=s-1, carry=1; i>=0 && carry; i--)
-    		carry = !(output[i] = input[i]+1);
-	}
-	inline void ProcessMultipleBlocks(byte *output, const byte *input, unsigned int n)
-	{
-		unsigned int s = BlockSize(), j = 0;
-		for (unsigned int i=1; i<n; i++, j+=s)
-			IncrementCounterByOne(m_counterArray + j + s, m_counterArray + j, s);
-		m_cipher->ProcessAndXorMultipleBlocks(m_counterArray, input, output, n);
-		IncrementCounterByOne(m_counterArray, m_counterArray + s*(n-1), s);
-	}
+	inline void ProcessMultipleBlocks(byte *output, const byte *input, unsigned int n);
 
 	SecByteBlock m_counterArray;
 };
@@ -209,6 +198,8 @@ class CBC_CTS_Encryption : public CBC_Encryption
 {
 public:
 	void SetStolenIV(byte *iv) {m_stolenIV = iv;}
+	unsigned int MinLastBlockSize() const {return BlockSize()+1;}
+	void ProcessLastBlock(byte *outString, const byte *inString, unsigned int length);
 
 protected:
 	void UncheckedSetKey(const NameValuePairs &params, const byte *key, unsigned int length)
@@ -216,8 +207,6 @@ protected:
 		CBC_Encryption::UncheckedSetKey(params, key, length);
 		m_stolenIV = params.GetValueWithDefault(Name::StolenIV(), (byte *)NULL);
 	}
-	unsigned int MinLastBlockSize() const {return BlockSize()+1;}
-	void ProcessLastBlock(byte *outString, const byte *inString, unsigned int length);
 
 	byte *m_stolenIV;
 };
@@ -238,6 +227,7 @@ protected:
 
 class CBC_CTS_Decryption : public CBC_Decryption
 {
+public:
 	unsigned int MinLastBlockSize() const {return BlockSize()+1;}
 	void ProcessLastBlock(byte *outString, const byte *inString, unsigned int length);
 };
@@ -372,7 +362,7 @@ struct CBC_CTS_Mode_ExternalCipher : public CipherModeDocumentation
 typedef CFB_Mode_ExternalCipher::Encryption CFBEncryption;
 typedef CFB_Mode_ExternalCipher::Decryption CFBDecryption;
 typedef OFB_Mode_ExternalCipher::Encryption OFB;
-typedef OFB_Mode_ExternalCipher::Encryption CounterMode;
+typedef CTR_Mode_ExternalCipher::Encryption CounterMode;
 #endif
 
 NAMESPACE_END

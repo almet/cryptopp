@@ -23,6 +23,34 @@ NAMESPACE_BEGIN(CryptoPP)
 
 extern PowerUpSelfTestStatus g_powerUpSelfTestStatus;
 
+void KnownAnswerTest(RandomNumberGenerator &rng, const char *output)
+{
+	EqualityComparisonFilter comparison;
+
+	RandomNumberStore(rng, strlen(output)/2).TransferAllTo(comparison, "0");
+	StringSource(output, true, new HexDecoder(new ChannelSwitch(comparison, "1")));
+
+	comparison.ChannelMessageSeriesEnd("0");
+	comparison.ChannelMessageSeriesEnd("1");
+}
+
+template <class CIPHER>
+void X917RNG_KnownAnswerTest(
+	const char *key, 
+	const char *seed, 
+	const char *output,
+	unsigned int deterministicTimeVector,
+	CIPHER *dummy = NULL)
+{
+	std::string decodedKey, decodedSeed;
+	StringSource(key, true, new HexDecoder(new StringSink(decodedKey)));
+	StringSource(seed, true, new HexDecoder(new StringSink(decodedSeed)));
+
+	AutoSeededX917RNG<CIPHER> rng;
+	rng.Reseed((const byte *)decodedKey.data(), decodedKey.size(), (const byte *)decodedSeed.data(), deterministicTimeVector);
+	KnownAnswerTest(rng, output);
+}
+
 void KnownAnswerTest(StreamTransformation &encryption, StreamTransformation &decryption, const char *plaintext, const char *ciphertext)
 {
 	EqualityComparisonFilter comparison;
@@ -136,7 +164,7 @@ void EncryptionPairwiseConsistencyTest(const PK_Encryptor &encryptor, const PK_D
 			new PK_EncryptorFilter(
 				rng, 
 				encryptor, 
-				new PK_DecryptorFilter(decryptor, new ChannelSwitch(comparison, "1"))));
+				new PK_DecryptorFilter(rng, decryptor, new ChannelSwitch(comparison, "1"))));
 
 		comparison.ChannelMessageSeriesEnd("0");
 		comparison.ChannelMessageSeriesEnd("1");
@@ -208,6 +236,12 @@ void DoPowerUpSelfTest(const char *moduleFilename, const byte *expectedModuleSha
 
 		// algorithm tests
 
+		X917RNG_KnownAnswerTest<DES_EDE3>(
+			"48851090B4992453E83CDA86416534E53EA2FCE1A0B3A40C",						// key
+			"7D00BD0A79F6B0F5",														// seed
+			"22B590B08B53363AEB89AD65F81A5B6FB83F326CE06BF35751E6C41B43B729C4",		// output
+			1489728269);															// time vector
+
 		SymmetricEncryptionKnownAnswerTest<DES>(
 			"0123456789abcdef",	// key
 			"1234567890abcdef",	// IV
@@ -268,7 +302,7 @@ void DoPowerUpSelfTest(const char *moduleFilename, const byte *expectedModuleSha
 			"Sample #2",
 			"0922d3405faa3d194f82a45830737d5cc6c75d24");
 
-		SignatureKnownAnswerTest<RSASSA<PKCS1v15, SHA> >(
+		SignatureKnownAnswerTest<RSASS<PKCS1v15, SHA> >(
 			"30820150020100300d06092a864886f70d01010105000482013a3082013602010002400a66791dc6988168de7ab77419bb7fb0"
 			"c001c62710270075142942e19a8d8c51d053b3e3782a1de5dc5af4ebe99468170114a1dfe67cdc9a9af55d655620bbab0203010001"
 			"02400123c5b61ba36edb1d3679904199a89ea80c09b9122e1400c09adcf7784676d01d23356a7d44d6bd8bd50e94bfc723fa"

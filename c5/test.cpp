@@ -19,6 +19,7 @@
 #include "osrng.h"
 #include "wait.h"
 #include "fips140.h"
+#include "factory.h"
 
 #include "validate.h"
 #include "bench.h"
@@ -26,7 +27,7 @@
 #include <iostream>
 #include <time.h>
 
-#if defined(_WIN32) || defined(__CYGWIN__)
+#ifdef CRYPTOPP_WIN32_AVAILABLE
 #include <windows.h>
 #endif
 
@@ -78,6 +79,11 @@ void FIPS140_GenerateRandomFiles();
 
 bool Validate(int, bool, const char *);
 
+void RegisterFactories();
+bool RunTestDataFile(const char *filename);
+
+int (*AdhocTest)(int argc, char *argv[]) = NULL;
+
 #ifdef __BCPLUSPLUS__
 int cmain(int argc, char *argv[])
 #elif defined(_MSC_VER)
@@ -110,7 +116,7 @@ int main(int argc, char *argv[])
 		{
 			edcFilename = "edc.dat";
 
-#if defined(_WIN32) || defined(__CYGWIN__)
+#ifdef CRYPTOPP_WIN32_AVAILABLE
 			TCHAR filename[MAX_PATH];
 			GetModuleFileName(GetModuleHandle(NULL), filename, sizeof(filename));
 			executableName = filename;
@@ -199,6 +205,10 @@ int main(int argc, char *argv[])
 			return 0;
 		case 't':
 		  {
+			if (command == "tv")
+			{
+				return !RunTestDataFile(argv[2]);
+			}
 			// VC60 workaround: use char array instead of std::string to workaround MSVC's getline bug
 			char passPhrase[MAX_PHRASE_LENGTH], plaintext[1024];
 
@@ -277,6 +287,11 @@ int main(int argc, char *argv[])
 			else if (command == "ft")
 				ForwardTcpPort(argv[2], argv[3], argv[4]);
 			return 0;
+		case 'a':
+			if (AdhocTest)
+				return (*AdhocTest)(argc, argv);
+			else
+				return 0;
 		default:
 			FileSource usage("usage.dat", true, new FileSink(cout));
 			return 1;
@@ -357,11 +372,11 @@ void FIPS140_SampleApplication(const char *moduleFilename, const char *edcFilena
 	byte ciphertext[24];
 	byte decrypted[24];
 
-	CFB_Mode<DES>::Encryption encryption_DES_CBC;
+	CBC_Mode<DES>::Encryption encryption_DES_CBC;
 	encryption_DES_CBC.SetKeyWithIV(key, 8, iv);
 	encryption_DES_CBC.ProcessString(ciphertext, plaintext, 24);
 
-	CFB_Mode<DES>::Decryption decryption_DES_CBC;
+	CBC_Mode<DES>::Decryption decryption_DES_CBC;
 	decryption_DES_CBC.SetKeyWithIV(key, 8, iv);
 	decryption_DES_CBC.ProcessString(decrypted, ciphertext, 24);
 
@@ -433,7 +448,7 @@ void FIPS140_SampleApplication(const char *moduleFilename, const char *edcFilena
 	signer.SignMessage(rng, message, 3, signature);
 
 	DSA::Verifier verifier(dsaPublicKey);
-	if (!verifier.VerifyMessage(message, 3, signature))
+	if (!verifier.VerifyMessage(message, 3, signature, 40))
 	{
 		cerr << "DSA signature and verification failed.\n";
 		abort();
@@ -443,7 +458,7 @@ void FIPS140_SampleApplication(const char *moduleFilename, const char *edcFilena
 
 	// try to verify an invalid signature
 	signature[0] ^= 1;
-	if (verifier.VerifyMessage(message, 3, signature))
+	if (verifier.VerifyMessage(message, 3, signature, 40))
 	{
 		cerr << "DSA signature verification failed to detect bad signature.\n";
 		abort();
@@ -523,7 +538,7 @@ string RSADecryptString(const char *privFilename, const char *ciphertext)
 	RSAES_OAEP_SHA_Decryptor priv(privFile);
 
 	string result;
-	StringSource(ciphertext, true, new HexDecoder(new PK_DecryptorFilter(priv, new StringSink(result))));
+	StringSource(ciphertext, true, new HexDecoder(new PK_DecryptorFilter(GlobalRNG(), priv, new StringSink(result))));
 	return result;
 }
 
@@ -623,7 +638,7 @@ void SecretShareFile(int threshold, int nShares, const char *filename, const cha
 
 	vector_member_ptrs<FileSink> fileSinks(nShares);
 	string channel;
-	for (unsigned int i=0; i<nShares; i++)
+	for (int i=0; i<nShares; i++)
 	{
 		char extension[5] = ".000";
 		extension[1]='0'+byte(i/100);
@@ -647,7 +662,7 @@ void SecretRecoverFile(int threshold, const char *outFilename, char *const *inFi
 
 	vector_member_ptrs<FileSource> fileSources(threshold);
 	SecByteBlock channel(4);
-	unsigned int i;
+	int i;
 	for (i=0; i<threshold; i++)
 	{
 		fileSources[i].reset(new FileSource(inFilenames[i], false));
@@ -906,6 +921,7 @@ bool Validate(int alg, bool thorough, const char *seed)
 	case 56: result = ValidatePBKDF(); break;
 	case 57: result = ValidateESIGN(); break;
 	case 58: result = ValidateDLIES(); break;
+	case 59: result = ValidateBaseCode(); break;
 	default: result = ValidateAll(thorough); break;
 	}
 

@@ -1,12 +1,12 @@
-Compilation Copyright (c) 1995-2002 by Wei Dai.  All rights reserved.
+Compilation Copyright (c) 1995-2003 by Wei Dai.  All rights reserved.
 This copyright applies only to this software distribution package 
 as a compilation, and does not imply a copyright on any particular 
 file in the package.
 
-The following files are copyrighted by their respective original authors:
+The following files are copyrighted by their respective original authors,
+and their use is subject to additional licenses included in these files.
 
 mars.cpp - Copyright 1998 Brian Gladman.
-serpent.cpp - Copyright 1998, 1999 Brian Gladman and Sam Simpson.
 
 All other files in this compilation are placed in the public domain by
 Wei Dai and other contributors.
@@ -18,7 +18,7 @@ Joan Daemen - 3way.cpp
 Leonard Janke - cast.cpp, seal.cpp
 Steve Reid - cast.cpp
 Phil Karn - des.cpp
-Michael Paul Johnson - diamond.cpp, sapphire.cpp
+Michael Paul Johnson - diamond.cpp
 Andrew M. Kuchling - md2.cpp, md4.cpp
 Colin Plumb - md5.cpp, md5mac.cpp
 Seal Woods - rc6.cpp

@@ -2,15 +2,9 @@
 
 #include "pch.h"
 #include "algparam.h"
-#include "integer.h"
 
 NAMESPACE_BEGIN(CryptoPP)
 
-const std::type_info &g_typeidInteger = typeid(Integer);
-
-void AssignIntToInteger(void *pInteger, const void *pInt)
-{
-	*reinterpret_cast<Integer *>(pInteger) = *reinterpret_cast<const int *>(pInt);
-}
+bool (*AssignIntToInteger)(const std::type_info &valueType, void *pInteger, const void *pInt) = NULL;
 
 NAMESPACE_END

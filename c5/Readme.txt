@@ -1,5 +1,5 @@
 Crypto++: a C++ Class Library of Cryptographic Primitives
-Version 5.0 9/11/2002
+Version 5.1 3/20/2003
 
 This library includes:
 
@@ -11,8 +11,7 @@ This library includes:
   3-WAY, GOST, SHARK, CAST-128, Square, Skipjack  
 - generic block cipher modes: ECB, CBC, CBC ciphertext stealing (CTS), 
   CFB, OFB, counter (CTR) mode  
-- stream ciphers: Panama, ARC4, SEAL, WAKE, WAKE-OFB, Sapphire II, 
-  BlumBlumShub  
+- stream ciphers: Panama, ARC4, SEAL, WAKE, WAKE-OFB, BlumBlumShub
 - public key cryptography: RSA, DSA, ElGamal, Nyberg-Rueppel (NR), Rabin, 
   Rabin-Williams (RW), LUC, LUCELG, DLIES (variants of DHAES), ESIGN  
 - padding schemes for public-key systems: PKCS#1 v2.0, OAEP, PSSR, IEEE 
@@ -59,28 +58,26 @@ and build the "cryptest" project. This will compile Crypto++ as a static
 library and also build the test driver. Run the test driver and make sure
 the validation suite passes.  Then to use the library simply insert the
 "cryptlib.dsp" project file into your own application workspace as a
-dependent project. You may need to check the compiler options to make sure
+dependent project. You should check the compiler options to make sure
 that the library and your application are using the same C++ run-time
-libraries.
+libraries and calling conventions.
 
 A makefile is included for you to compile Crypto++ with GCC. Make sure
 you are using GNU Make and GNU ld. The make process will produce two files,
 libcryptopp.a and cryptest.exe. Run "cryptest.exe v" for the validation
 suite.
 
-Crypto++ is documented mostly through comments in header files.  If you are
-not familiar with cryptography, I suggest that you read an introductory
-text (such as Bruce Schneier's _Applied Cryptography_) before attempting
-to use this library.  Then, you should start by looking at
-cryptlib.h, which contains the main abstract base classes and their
-descriptions, and test.cpp, which contains sample/test code.  There
-should also be a link on http://www.cryptopp.com to an HTML reference
-manual generated from the inline documentation.
+Crypto++ is documented through inline comments in header files, which are
+processed through Doxygen to produce an HTML reference manual. You can find
+a link to the manual from http://www.cryptopp.com. Also at that site is
+the Crypto++ FAQ, which you should browse through before attempting to 
+use this library, because it will likely answer many of questions that
+may come up.
 
 If you run into any problems, please try the Crypto++ mailing list.
 The subscription information and the list archive are available on
 http://www.cryptopp.com. You can also email me directly at
-weidai@eskimo.com, but you will probably get a faster response through
+cryptopp@weidai.com, but you will probably get a faster response through
 the mailing list.
 
 Finally, a couple of usage notes to keep in mind: 
@@ -236,8 +233,23 @@ History
       AESEncryption and AESDecryption are now AES::Encryption and AES::Decryption
     - where possible, typedefs have been added to improve backwards 
       compatibility when the CRYPTOPP_MAINTAIN_BACKWARDS_COMPATIBILITY macro is defined
-    - changed HAVAL and IDEA to use public domain code
+    - changed Serpent, HAVAL and IDEA to use public domain code
     - implemented SSE2 optimizations for Integer operations
-    - is being evaluated for FIPS 140-2 compliance
     - fixed a bug in HMAC::TruncatedFinal()
     - fixed SKIPJACK byte ordering following NIST clarification dated 5/9/02
+
+5.01 (special FIPS 140-2 release, in development)
+    - added known answer test for X9.17 RNG in FIPS 140 power-up self test
+    - is being evaluated for FIPS 140-2 compliance
+
+5.1 - added PSS padding and changed PSSR to track IEEE P1363a draft standard
+    - added blinding for RSA and Rabin to defend against timing attacks
+      on decryption operations
+    - changed signing and decryption APIs to support the above
+    - changed WaitObjectContainer to allow waiting for more than 64
+      objects at a time on Win32 platforms
+    - fixed a bug in CBC and ECB modes with processing non-aligned data
+    - fixed standard conformance bugs in DLIES (DHAES mode) and RW/EMSA2
+      signature scheme (these fixes are not backwards compatible)
+    - fixed a number of compiler warnings, minor bugs, and portability problems
+    - removed Sapphire

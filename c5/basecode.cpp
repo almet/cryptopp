@@ -41,17 +41,32 @@ unsigned int BaseN_Encoder::Put2(const byte *begin, unsigned int length, int mes
 		if (m_bytePos == 0)
 			memset(m_outBuf, 0, m_outputBlockSize);
 
-		m_outBuf[m_bytePos] |= begin[m_inputPosition] >> (8-m_bitsPerChar+m_bitPos);
-		m_outBuf[m_bytePos+1] |= ((begin[m_inputPosition] << (m_bitsPerChar-m_bitPos)) & 0xff) >> (8-m_bitsPerChar);
-		++m_inputPosition;
-
-		m_bitPos += 8;
-		while (m_bitPos >= m_bitsPerChar)
 		{
-			m_bitPos -= m_bitsPerChar;
-			++m_bytePos;
+		unsigned int b = begin[m_inputPosition++], bitsLeftInSource = 8;
+		while (true)
+		{
+			assert(m_bitPos < m_bitsPerChar);
+			unsigned int bitsLeftInTarget = m_bitsPerChar-m_bitPos;
+			m_outBuf[m_bytePos] |= b >> (8-bitsLeftInTarget);
+			if (bitsLeftInSource >= bitsLeftInTarget)
+			{
+				m_bitPos = 0;
+				++m_bytePos;
+				bitsLeftInSource -= bitsLeftInTarget;
+				if (bitsLeftInSource == 0)
+					break;
+				b <<= bitsLeftInTarget;
+				b &= 0xff;
+			}
+			else
+			{
+				m_bitPos += bitsLeftInSource;
+				break;
+			}
+		}
 		}
 
+		assert(m_bytePos <= m_outputBlockSize);
 		if (m_bytePos == m_outputBlockSize)
 		{
 			int i;
@@ -82,7 +97,7 @@ unsigned int BaseN_Encoder::Put2(const byte *begin, unsigned int length, int mes
 		FILTER_OUTPUT(2, m_outBuf, m_bytePos, messageEnd);
 		m_bytePos = m_bitPos = 0;
 	}
-	FILTER_END;
+	FILTER_END_NO_MESSAGE_END;
 }
 
 void BaseN_Decoder::IsolatedInitialize(const NameValuePairs &parameters)
@@ -172,28 +187,26 @@ void BaseN_Decoder::InitializeDecodingLookupArray(int *lookup, const byte *alpha
 void Grouper::IsolatedInitialize(const NameValuePairs &parameters)
 {
 	m_groupSize = parameters.GetIntValueWithDefault("GroupSize", 0);
-	ConstByteArrayParameter seperator, terminator;
+	ConstByteArrayParameter separator, terminator;
 	if (m_groupSize)
-		parameters.GetRequiredParameter("Grouper", "Seperator", seperator);
-	else
-		parameters.GetValue("Seperator", seperator);
+		parameters.GetRequiredParameter("Grouper", "Separator", separator);
 	parameters.GetValue("Terminator", terminator);
 
-	m_seperator.Assign(seperator.begin(), seperator.size());
+	m_separator.Assign(separator.begin(), separator.size());
 	m_terminator.Assign(terminator.begin(), terminator.size());
 	m_counter = 0;
 }
 
 unsigned int Grouper::Put2(const byte *begin, unsigned int length, int messageEnd, bool blocking)
 {
+	FILTER_BEGIN;
 	if (m_groupSize)
 	{
-		FILTER_BEGIN;
 		while (m_inputPosition < length)
 		{
 			if (m_counter == m_groupSize)
 			{
-				FILTER_OUTPUT(1, m_seperator, m_seperator.size(), 0);
+				FILTER_OUTPUT(1, m_separator, m_separator.size(), 0);
 				m_counter = 0;
 			}
 
@@ -203,12 +216,13 @@ unsigned int Grouper::Put2(const byte *begin, unsigned int length, int messageEn
 			m_inputPosition += len;
 			m_counter += len;
 		}
-		if (messageEnd)
-			FILTER_OUTPUT(3, m_terminator, m_terminator.size(), messageEnd);
-		FILTER_END_NO_MESSAGE_END
 	}
 	else
-		return Output(0, begin, length, messageEnd, blocking);
+		FILTER_OUTPUT(3, begin, length, 0);
+
+	if (messageEnd)
+		FILTER_OUTPUT(4, m_terminator, m_terminator.size(), messageEnd);
+	FILTER_END_NO_MESSAGE_END
 }
 
 NAMESPACE_END

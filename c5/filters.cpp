@@ -133,19 +133,23 @@ bool Filter::OutputMessageSeriesEnd(int outputSite, int propagation, bool blocki
 
 unsigned int MeterFilter::Put2(const byte *begin, unsigned int length, int messageEnd, bool blocking)
 {
-	FILTER_BEGIN;
-	m_currentMessageBytes += length;
-	m_totalBytes += length;
-
-	if (messageEnd)
+	if (m_transparent)
 	{
-		m_currentMessageBytes = 0;
-		m_currentSeriesMessages++;
-		m_totalMessages++;
+		FILTER_BEGIN;
+		m_currentMessageBytes += length;
+		m_totalBytes += length;
+
+		if (messageEnd)
+		{
+			m_currentMessageBytes = 0;
+			m_currentSeriesMessages++;
+			m_totalMessages++;
+		}
+		
+		FILTER_OUTPUT(1, begin, length, messageEnd);
+		FILTER_END_NO_MESSAGE_END;
 	}
-	
-	FILTER_OUTPUT(1, begin, length, messageEnd);
-	FILTER_END;
+	return 0;
 }
 
 bool MeterFilter::IsolatedMessageSeriesEnd(bool blocking)
@@ -387,35 +391,27 @@ void Redirector::ChannelInitialize(const std::string &channel, const NameValuePa
 // *************************************************************
 
 ProxyFilter::ProxyFilter(BufferedTransformation *filter, unsigned int firstSize, unsigned int lastSize, BufferedTransformation *attachment)
-	: FilterWithBufferedInput(firstSize, 1, lastSize, attachment), m_filter(filter), m_proxy(NULL)
+	: FilterWithBufferedInput(firstSize, 1, lastSize, attachment), m_filter(filter)
 {
 	if (m_filter.get())
-		m_filter->Attach(m_proxy = new OutputProxy(*this, false));
+		m_filter->Attach(new OutputProxy(*this, false));
 }
 
-void ProxyFilter::IsolatedFlush(bool completeFlush)
+bool ProxyFilter::IsolatedFlush(bool hardFlush, bool blocking)
 {
-	if (m_filter.get())
-	{
-		bool passSignal = m_proxy->GetPassSignal();
-		m_proxy->SetPassSignal(false);
-		m_filter->Flush(completeFlush, -1);
-		m_proxy->SetPassSignal(passSignal);
-	}
+	return m_filter.get() ? m_filter->Flush(hardFlush, -1, blocking) : false;
 }
 
 void ProxyFilter::SetFilter(Filter *filter)
 {
-	bool passSignal = m_proxy ? m_proxy->GetPassSignal() : false;
 	m_filter.reset(filter);
 	if (filter)
 	{
-		std::auto_ptr<OutputProxy> temp(m_proxy = new OutputProxy(*this, passSignal));
-		m_filter->TransferAllTo(*m_proxy);
+		OutputProxy *proxy;
+		std::auto_ptr<OutputProxy> temp(proxy = new OutputProxy(*this, false));
+		m_filter->TransferAllTo(*proxy);
 		m_filter->Attach(temp.release());
 	}
-	else
-		m_proxy=NULL;
 }
 
 void ProxyFilter::NextPutMultiple(const byte *s, unsigned int len) 
@@ -741,7 +737,8 @@ void SignatureVerificationFilter::InitializeDerivedAndReturnNewSizes(const NameV
 {
 	m_flags = parameters.GetValueWithDefault(Name::SignatureVerificationFilterFlags(), (word32)DEFAULT_FLAGS);
 	m_messageAccumulator.reset(m_verifier.NewVerificationAccumulator());
-	unsigned int size = m_verifier.SignatureLength();
+	unsigned int size =	m_verifier.SignatureLength();
+	assert(size != 0);	// TODO: handle recoverable signature scheme
 	m_verified = false;
 	firstSize = m_flags & SIGNATURE_AT_BEGIN ? size : 0;
 	blockSize = 1;
@@ -752,8 +749,8 @@ void SignatureVerificationFilter::FirstPut(const byte *inString)
 {
 	if (m_flags & SIGNATURE_AT_BEGIN)
 	{
-		if (m_verifier.SignatureUpfrontForVerification())
-			m_verifier.InitializeVerificationAccumulator(*m_messageAccumulator, inString);
+		if (m_verifier.SignatureUpfront())
+			m_verifier.InputSignature(*m_messageAccumulator, inString, m_verifier.SignatureLength());
 		else
 		{
 			m_signature.New(m_verifier.SignatureLength());
@@ -765,7 +762,7 @@ void SignatureVerificationFilter::FirstPut(const byte *inString)
 	}
 	else
 	{
-		assert(!m_verifier.SignatureUpfrontForVerification());
+		assert(!m_verifier.SignatureUpfront());
 	}
 }
 
@@ -781,11 +778,13 @@ void SignatureVerificationFilter::LastPut(const byte *inString, unsigned int len
 	if (m_flags & SIGNATURE_AT_BEGIN)
 	{
 		assert(length == 0);
-		m_verified = m_verifier.Verify(m_messageAccumulator.release(), m_signature);
+		m_verifier.InputSignature(*m_messageAccumulator, m_signature, m_signature.size());
+		m_verified = m_verifier.VerifyAndRestart(*m_messageAccumulator);
 	}
 	else
 	{
-		m_verified = (length==m_verifier.SignatureLength() && m_verifier.Verify(m_messageAccumulator.release(), inString));
+		m_verifier.InputSignature(*m_messageAccumulator, inString, length);
+		m_verified = m_verifier.VerifyAndRestart(*m_messageAccumulator);
 		if (m_flags & PUT_SIGNATURE)
 			AttachedTransformation()->Put(inString, length);
 	}

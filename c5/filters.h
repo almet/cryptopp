@@ -144,8 +144,8 @@ public:
 	/*! calls ForceNextPut() if hardFlush is true */
 	bool IsolatedFlush(bool hardFlush, bool blocking);
 
-	/*! the input buffer may contain more than blockSize bytes if lastSize != 0
-		ForceNextPut() forces a call to NextPut() if this is the case 
+	/*! The input buffer may contain more than blockSize bytes if lastSize != 0.
+		ForceNextPut() forces a call to NextPut() if this is the case.
 	*/
 	void ForceNextPut();
 
@@ -324,8 +324,8 @@ public:
 
 private:
 	RandomNumberGenerator &m_rng;
-	const PK_Signer &m_signer;
-	member_ptr<HashTransformation> m_messageAccumulator;
+	const PK_Signer	&m_signer;
+	member_ptr<PK_MessageAccumulator> m_messageAccumulator;
 	bool m_putMessage;
 	SecByteBlock m_buf;
 };
@@ -354,13 +354,13 @@ protected:
 
 private:
 	const PK_Verifier &m_verifier;
-	member_ptr<HashTransformation> m_messageAccumulator;
+	member_ptr<PK_MessageAccumulator> m_messageAccumulator;
 	word32 m_flags;
 	SecByteBlock m_signature;
 	bool m_verified;
 };
 
-typedef SignatureVerificationFilter VerifierFilter;	// for backwards compatibility
+typedef SignatureVerificationFilter VerifierFilter; // for backwards compatibility
 
 //! Redirect input to another BufferedTransformation without owning it
 class Redirector : public CustomSignalPropagation<Sink>
@@ -440,14 +440,13 @@ class ProxyFilter : public FilterWithBufferedInput
 public:
 	ProxyFilter(BufferedTransformation *filter, unsigned int firstSize, unsigned int lastSize, BufferedTransformation *attachment);
 
-	void IsolatedFlush(bool completeFlush);
+	bool IsolatedFlush(bool hardFlush, bool blocking);
 
 	void SetFilter(Filter *filter);
 	void NextPutMultiple(const byte *s, unsigned int len);
 
 protected:
 	member_ptr<BufferedTransformation> m_filter;
-	OutputProxy *m_proxy;
 };
 
 //! simple proxy filter that doesn't modify the underlying filter's input or output
@@ -475,8 +474,8 @@ public:
 class PK_DecryptorFilter : public SimpleProxyFilter
 {
 public:
-	PK_DecryptorFilter(const PK_Decryptor &decryptor, BufferedTransformation *attachment = NULL)
-		: SimpleProxyFilter(decryptor.CreateDecryptionFilter(), attachment) {}
+	PK_DecryptorFilter(RandomNumberGenerator &rng, const PK_Decryptor &decryptor, BufferedTransformation *attachment = NULL)
+		: SimpleProxyFilter(decryptor.CreateDecryptionFilter(rng), attachment) {}
 };
 
 //! Append input to a string object
@@ -492,9 +491,16 @@ public:
 
 	void IsolatedInitialize(const NameValuePairs &parameters)
 		{if (!parameters.GetValue("OutputStringPointer", m_output)) throw InvalidArgument("StringSink: OutputStringPointer not specified");}
+
 	unsigned int Put2(const byte *begin, unsigned int length, int messageEnd, bool blocking)
 	{
-		m_output->append((const char_type *)begin, (const char_type *)begin+length);
+		if (length > 0)
+		{
+			typename T::size_type size = m_output->size();
+			if (length < size && size + length > m_output->capacity())
+				m_output->reserve(2*size);
+			m_output->append((const char_type *)begin, (const char_type *)begin+length);
+		}
 		return 0;
 	}
 

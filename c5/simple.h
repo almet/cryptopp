@@ -134,14 +134,14 @@ public:
 		{ChannelInitialize(NULL_CHANNEL, parameters, propagation);}
 	bool Flush(bool hardFlush, int propagation=-1, bool blocking=true)
 		{return ChannelFlush(NULL_CHANNEL, hardFlush, propagation, blocking);}
-	void MessageSeriesEnd(int propagation)
-		{ChannelMessageSeriesEnd(NULL_CHANNEL, propagation);}
+	bool MessageSeriesEnd(int propagation=-1, bool blocking=true)
+		{return ChannelMessageSeriesEnd(NULL_CHANNEL, propagation, blocking);}
 	byte * CreatePutSpace(unsigned int &size)
 		{return ChannelCreatePutSpace(NULL_CHANNEL, size);}
 	unsigned int Put2(const byte *begin, unsigned int length, int messageEnd, bool blocking)
 		{return ChannelPut2(NULL_CHANNEL, begin, length, messageEnd, blocking);}
-	unsigned int PutModifiable2(byte *begin, byte *end, int messageEnd, bool blocking)
-		{return ChannelPutModifiable2(NULL_CHANNEL, begin, end, messageEnd, blocking);}
+	unsigned int PutModifiable2(byte *inString, unsigned int length, int messageEnd, bool blocking)
+		{return ChannelPutModifiable2(NULL_CHANNEL, inString, length, messageEnd, blocking);}
 
 //	void ChannelMessageSeriesEnd(const std::string &channel, int propagation=-1)
 //		{PropagateMessageSeriesEnd(propagation, channel);}
@@ -151,6 +151,8 @@ public:
 		{ChannelPut(channel, inString, length); return false;}
 
 	virtual unsigned int ChannelPut2(const std::string &channel, const byte *begin, unsigned int length, int messageEnd, bool blocking) =0;
+	unsigned int ChannelPutModifiable2(const std::string &channel, byte *begin, unsigned int length, int messageEnd, bool blocking)
+		{return ChannelPut2(channel, begin, length, messageEnd, blocking);}
 
 	virtual void ChannelInitialize(const std::string &channel, const NameValuePairs &parameters=g_nullNameValuePairs, int propagation=-1) =0;
 	virtual bool ChannelFlush(const std::string &channel, bool hardFlush, int propagation=-1, bool blocking=true) =0;

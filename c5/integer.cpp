@@ -23,6 +23,16 @@
 
 NAMESPACE_BEGIN(CryptoPP)
 
+bool FunctionAssignIntToInteger(const std::type_info &valueType, void *pInteger, const void *pInt)
+{
+	if (valueType != typeid(Integer))
+		return false;
+	*reinterpret_cast<Integer *>(pInteger) = *reinterpret_cast<const int *>(pInt);
+	return true;
+}
+
+static int DummyAssignIntToInteger = (AssignIntToInteger = FunctionAssignIntToInteger, 0);
+
 #ifdef SSE2_INTRINSICS_AVAILABLE
 template <class T>
 AllocatorBase<T>::pointer AlignedAllocator<T>::allocate(size_type n, const void *)
@@ -1295,8 +1305,10 @@ carry2:
 class PentiumOptimized : public Portable
 {
 public:
+#ifndef __pic__		// -fpic uses up a register, leaving too few for the asm code
 	static word Add(word *C, const word *A, const word *B, unsigned int N);
 	static word Subtract(word *C, const word *A, const word *B, unsigned int N);
+#endif
 	static void Square4(word *R, const word *A);
 	static void Multiply4(word *C, const word *A, const word *B);
 	static void Multiply8(word *C, const word *A, const word *B);
@@ -1306,6 +1318,7 @@ typedef PentiumOptimized LowLevel;
 
 // Add and Subtract assembly code originally contributed by Alister Lee
 
+#ifndef __pic__
 __attribute__((regparm(3))) word PentiumOptimized::Add(word *C, const word *A, const word *B, unsigned int N)
 {
 	assert (N%2 == 0);
@@ -1381,6 +1394,7 @@ __attribute__((regparm(3))) word PentiumOptimized::Subtract(word *C, const word 
 
 	return carry;
 }
+#endif	// __pic__
 
 // Comba square and multiply assembly code originally contributed by Leonard Janke
 
@@ -2142,11 +2156,11 @@ void MontgomeryReduce(word *R, word *T, const word *X, const word *M, const word
 {
 	MultiplyBottom(R, T, X, U, N);
 	MultiplyTop(T, T+N, X, R, M, N);
-	if (Subtract(R, X+N, T, N))
-	{
-		word carry = Add(R, R, M, N);
-		assert(carry);
-	}
+	word borrow = Subtract(T, X+N, T, N);
+	// defend against timing attack by doing this Add even when not needed
+	word carry = Add(T+N, T, M, N);
+	assert(carry || !borrow);
+	CopyWords(R, T + (borrow ? N : 0), N);
 }
 
 // R[N] --- result = X/(2**(WORD_BITS*N/2)) mod M
@@ -2546,6 +2560,13 @@ Integer::Integer(signed long value)
 	}
 	reg[0] = word(value);
 	reg[1] = word(SafeRightShift<WORD_BITS, unsigned long>(value));
+}
+
+Integer::Integer(Sign s, word high, word low)
+	: reg(2), sign(s)
+{
+	reg[0] = low;
+	reg[1] = high;
 }
 
 bool Integer::IsConvertableToLong() const

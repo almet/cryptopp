@@ -30,8 +30,6 @@ public:
 	std::istream* GetStream() {return m_stream;}
 
 	unsigned long MaxRetrievable() const;
-	unsigned int Peek(byte &outByte) const;
-
 	unsigned int TransferTo2(BufferedTransformation &target, unsigned long &transferBytes, const std::string &channel=NULL_CHANNEL, bool blocking=true);
 	unsigned int CopyRangeTo2(BufferedTransformation &target, unsigned long &begin, unsigned long end=ULONG_MAX, const std::string &channel=NULL_CHANNEL, bool blocking=true) const;
 

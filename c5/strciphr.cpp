@@ -16,7 +16,7 @@ byte AdditiveCipherTemplate<S>::GenerateByte()
 		m_leftOver = policy.GetBytesPerIteration();
 	}
 
-	return KeystreamBufferEnd()[-m_leftOver--];
+	return *(KeystreamBufferEnd()-m_leftOver--);
 }
 
 template <class S>
@@ -99,7 +99,7 @@ void AdditiveCipherTemplate<BASE>::Seek(dword position)
 	if (position > 0)
 	{
 		policy.WriteKeystream(m_buffer, 1);
-		m_leftOver = bytesPerIteration - position;
+		m_leftOver = bytesPerIteration - (unsigned int)position;
 	}
 	else
 		m_leftOver = 0;
