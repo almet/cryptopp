@@ -106,7 +106,7 @@ public:
 		OTHER_ERROR
 	};
 
-	explicit Exception(ErrorType errorType, const std::string &s) : m_what(s) {}
+	explicit Exception(ErrorType errorType, const std::string &s) : m_errorType(errorType), m_what(s) {}
 	virtual ~Exception() throw() {}
 	const char *what() const throw() {return (m_what.c_str());}
 	const std::string &GetWhat() const {return m_what;}
