@@ -22,7 +22,9 @@ void RSA_TestInstantiations()
 	RSASSA<PKCS1v15, SHA>::Verifier x5(x3);
 	RSASSA<PKCS1v15, SHA>::Signer x6 = x2;
 	RSAES<PKCS1v15>::Encryptor x7(x2);
+#ifndef __GNUC__
 	RSAES<PKCS1v15>::Encryptor x8(x3);
+#endif
 	RSAES<OAEP<SHA> >::Encryptor x9(x2);
 
 	x6 = x2;
