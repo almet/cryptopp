@@ -144,8 +144,8 @@ public:
 	/*! calls ForceNextPut() if hardFlush is true */
 	bool IsolatedFlush(bool hardFlush, bool blocking);
 
-	/*! the input buffer may contain more than blockSize bytes if lastSize != 0
-		ForceNextPut() forces a call to NextPut() if this is the case 
+	/*! The input buffer may contain more than blockSize bytes if lastSize != 0.
+		ForceNextPut() forces a call to NextPut() if this is the case.
 	*/
 	void ForceNextPut();
 
@@ -360,7 +360,7 @@ private:
 	bool m_verified;
 };
 
-typedef SignatureVerificationFilter VerifierFilter;	// for backwards compatibility
+typedef SignatureVerificationFilter VerifierFilter; // for backwards compatibility
 
 //! Redirect input to another BufferedTransformation without owning it
 class Redirector : public CustomSignalPropagation<Sink>
@@ -440,14 +440,13 @@ class ProxyFilter : public FilterWithBufferedInput
 public:
 	ProxyFilter(BufferedTransformation *filter, unsigned int firstSize, unsigned int lastSize, BufferedTransformation *attachment);
 
-	void IsolatedFlush(bool completeFlush);
+	bool IsolatedFlush(bool hardFlush, bool blocking);
 
 	void SetFilter(Filter *filter);
 	void NextPutMultiple(const byte *s, unsigned int len);
 
 protected:
 	member_ptr<BufferedTransformation> m_filter;
-	OutputProxy *m_proxy;
 };
 
 //! simple proxy filter that doesn't modify the underlying filter's input or output
@@ -494,7 +493,8 @@ public:
 		{if (!parameters.GetValue("OutputStringPointer", m_output)) throw InvalidArgument("StringSink: OutputStringPointer not specified");}
 	unsigned int Put2(const byte *begin, unsigned int length, int messageEnd, bool blocking)
 	{
-		m_output->append((const char_type *)begin, (const char_type *)begin+length);
+		if (length > 0)
+			m_output->append((const char_type *)begin, (const char_type *)begin+length);
 		return 0;
 	}
 

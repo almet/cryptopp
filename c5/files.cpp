@@ -44,21 +44,6 @@ unsigned long FileStore::MaxRetrievable() const
 	return end-current;
 }
 
-unsigned int FileStore::Peek(byte &outByte) const
-{
-	if (!m_stream)
-		return 0;
-
-	int result = m_stream->peek();
-	if (result == EOF)	// GCC workaround: 2.95.2 doesn't have char_traits<char>::eof()
-		return 0;
-	else
-	{
-		outByte = byte(result);
-		return 1;
-	}
-}
-
 unsigned int FileStore::TransferTo2(BufferedTransformation &target, unsigned long &transferBytes, const std::string &channel, bool blocking)
 {
 	if (!m_stream)
@@ -102,6 +87,19 @@ unsigned int FileStore::CopyRangeTo2(BufferedTransformation &target, unsigned lo
 {
 	if (!m_stream)
 		return 0;
+
+	if (begin == 0 && end == 1)
+	{
+		int result = m_stream->peek();
+		if (result == EOF)	// GCC workaround: 2.95.2 doesn't have char_traits<char>::eof()
+			return 0;
+		else
+		{
+			unsigned int blockedBytes = target.ChannelPut(channel, byte(result), blocking);
+			begin += 1-blockedBytes;
+			return blockedBytes;
+		}
+	}
 
 	// TODO: figure out what happens on cin
 	streampos current = m_stream->tellg();
@@ -164,7 +162,7 @@ bool FileSink::IsolatedFlush(bool hardFlush, bool blocking)
 
 	m_stream->flush();
 	if (!m_stream->good())
-	  throw WriteErr();
+		throw WriteErr();
 
 	return false;
 }
@@ -180,7 +178,7 @@ unsigned int FileSink::Put2(const byte *inString, unsigned int length, int messa
 		m_stream->flush();
 
 	if (!m_stream->good())
-	  throw WriteErr();
+		throw WriteErr();
 
 	return 0;
 }

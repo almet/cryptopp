@@ -63,29 +63,66 @@ void CipherModeBase::SetIV(const byte *iv)
 void CTR_ModePolicy::SeekToIteration(dword iterationCount)
 {
 	int carry=0;
-	for (int i=BlockSize()-1; i>=0 && (iterationCount || carry); i--)
+	for (int i=BlockSize()-1; i>=0; i--)
 	{
-		unsigned int sum = m_counterArray[i] + byte(iterationCount) + carry;
+		unsigned int sum = m_register[i] + byte(iterationCount) + carry;
 		m_counterArray[i] = (byte) sum;
 		carry = sum >> 8;
 		iterationCount >>= 8;
 	}
 }
 
+static inline void IncrementCounterByOne(byte *inout, unsigned int s)
+{
+	for (int i=s-1, carry=1; i>=0 && carry; i--)
+		carry = !++inout[i];
+}
+
+static inline void IncrementCounterByOne(byte *output, const byte *input, unsigned int s)
+{
+	for (int i=s-1, carry=1; i>=0; i--)
+		carry = !(output[i] = input[i]+carry) && carry;
+}
+
+inline void CTR_ModePolicy::ProcessMultipleBlocks(byte *output, const byte *input, unsigned int n)
+{
+	unsigned int s = BlockSize(), j = 0;
+	for (unsigned int i=1; i<n; i++, j+=s)
+		IncrementCounterByOne(m_counterArray + j + s, m_counterArray + j, s);
+	m_cipher->ProcessAndXorMultipleBlocks(m_counterArray, input, output, n);
+	IncrementCounterByOne(m_counterArray, m_counterArray + s*(n-1), s);
+}
+
 void CTR_ModePolicy::OperateKeystream(KeystreamOperation operation, byte *output, const byte *input, unsigned int iterationCount)
 {
 	unsigned int maxBlocks = m_cipher->OptimalNumberOfParallelBlocks();
-	unsigned int sizeIncrement = maxBlocks * m_cipher->BlockSize();
-	while (iterationCount >= maxBlocks)
+	if (maxBlocks == 1)
 	{
-		ProcessMultipleBlocks(output, input, maxBlocks);
-		output += sizeIncrement;
-		input += sizeIncrement;
-		iterationCount -= maxBlocks;
+		unsigned int sizeIncrement = BlockSize();
+		while (iterationCount)
+		{
+			m_cipher->ProcessAndXorBlock(m_counterArray, input, output);
+			IncrementCounterByOne(m_counterArray, sizeIncrement);
+			output += sizeIncrement;
+			input += sizeIncrement;
+			iterationCount -= 1;
+		}
 	}
-	if (iterationCount > 0)
-		ProcessMultipleBlocks(output, input, iterationCount);
+	else
+	{
+		unsigned int sizeIncrement = maxBlocks * BlockSize();
+		while (iterationCount >= maxBlocks)
+		{
+			ProcessMultipleBlocks(output, input, maxBlocks);
+			output += sizeIncrement;
+			input += sizeIncrement;
+			iterationCount -= maxBlocks;
+		}
+		if (iterationCount > 0)
+			ProcessMultipleBlocks(output, input, iterationCount);
+	}
 }
+
 void CTR_ModePolicy::CipherResynchronize(byte *keystreamBuffer, const byte *iv)
 {
 	unsigned int s = BlockSize();
@@ -107,11 +144,11 @@ void BlockOrientedCipherModeBase::ProcessData(byte *outString, const byte *inStr
 	unsigned int s = BlockSize();
 	assert(length % s == 0);
 	unsigned int alignment = m_cipher->BlockAlignment();
-	bool requireAlignedInput = RequireAlignedInput();
+	bool inputAlignmentOk = !RequireAlignedInput() || IsAlignedOn(inString, alignment);
 
 	if (IsAlignedOn(outString, alignment))
 	{
-		if (!requireAlignedInput || IsAlignedOn(inString, alignment))
+		if (inputAlignmentOk)
 			ProcessBlocks(outString, inString, length / s);
 		else
 		{
@@ -123,7 +160,7 @@ void BlockOrientedCipherModeBase::ProcessData(byte *outString, const byte *inStr
 	{
 		while (length)
 		{
-			if (!requireAlignedInput || IsAlignedOn(inString, alignment))
+			if (inputAlignmentOk)
 				ProcessBlocks(m_buffer, inString, 1);
 			else
 			{
@@ -131,6 +168,8 @@ void BlockOrientedCipherModeBase::ProcessData(byte *outString, const byte *inStr
 				ProcessBlocks(m_buffer, m_buffer, 1);
 			}
 			memcpy(outString, m_buffer, s);
+			inString += s;
+			outString += s;
 			length -= s;
 		}
 	}

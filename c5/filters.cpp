@@ -145,7 +145,7 @@ unsigned int MeterFilter::Put2(const byte *begin, unsigned int length, int messa
 	}
 	
 	FILTER_OUTPUT(1, begin, length, messageEnd);
-	FILTER_END;
+	FILTER_END_NO_MESSAGE_END;
 }
 
 bool MeterFilter::IsolatedMessageSeriesEnd(bool blocking)
@@ -387,35 +387,27 @@ void Redirector::ChannelInitialize(const std::string &channel, const NameValuePa
 // *************************************************************
 
 ProxyFilter::ProxyFilter(BufferedTransformation *filter, unsigned int firstSize, unsigned int lastSize, BufferedTransformation *attachment)
-	: FilterWithBufferedInput(firstSize, 1, lastSize, attachment), m_filter(filter), m_proxy(NULL)
+	: FilterWithBufferedInput(firstSize, 1, lastSize, attachment), m_filter(filter)
 {
 	if (m_filter.get())
-		m_filter->Attach(m_proxy = new OutputProxy(*this, false));
+		m_filter->Attach(new OutputProxy(*this, false));
 }
 
-void ProxyFilter::IsolatedFlush(bool completeFlush)
+bool ProxyFilter::IsolatedFlush(bool hardFlush, bool blocking)
 {
-	if (m_filter.get())
-	{
-		bool passSignal = m_proxy->GetPassSignal();
-		m_proxy->SetPassSignal(false);
-		m_filter->Flush(completeFlush, -1);
-		m_proxy->SetPassSignal(passSignal);
-	}
+	return m_filter.get() ? m_filter->Flush(hardFlush, -1, blocking) : false;
 }
 
 void ProxyFilter::SetFilter(Filter *filter)
 {
-	bool passSignal = m_proxy ? m_proxy->GetPassSignal() : false;
 	m_filter.reset(filter);
 	if (filter)
 	{
-		std::auto_ptr<OutputProxy> temp(m_proxy = new OutputProxy(*this, passSignal));
-		m_filter->TransferAllTo(*m_proxy);
+		OutputProxy *proxy;
+		std::auto_ptr<OutputProxy> temp(proxy = new OutputProxy(*this, false));
+		m_filter->TransferAllTo(*proxy);
 		m_filter->Attach(temp.release());
 	}
-	else
-		m_proxy=NULL;
 }
 
 void ProxyFilter::NextPutMultiple(const byte *s, unsigned int len) 

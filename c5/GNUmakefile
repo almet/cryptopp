@@ -13,13 +13,21 @@ else
 CXXFLAGS += -pipe
 endif
 
-ifeq ($(UNAME),Darwin)	# -fpic conflicts with inline asm in integer.cpp on i386
+ifeq ($(UNAME),Darwin)
+AR = libtool
+ARFLAGS = -static -o
+CXXFLAGS += -D__pic__
+IS_GCC2 = $(shell c++ -v 2>&1 | grep -c gcc-932)
+ifeq ($(IS_GCC2),1)
+CXXFLAGS += -fno-coalesce-templates -fno-coalesce-static-vtables
 CXX = c++
-CXXFLAGS += -fno-pic
+LDLIBS += -lstdc++
+LDFLAGS += -flat_namespace -undefined suppress -m
+endif
 endif
 
 ifeq ($(UNAME),SunOS)
-LDLIBS = -lnsl -lsocket
+LDLIBS += -lnsl -lsocket
 endif
 
 ifeq ($(CXX),gcc)	# for some reason CXX is gcc on cygwin 1.1.4

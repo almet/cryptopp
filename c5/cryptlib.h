@@ -4,7 +4,7 @@
 	classes that provide a uniform interface to this library.
 */
 
-/*!	\mainpage <a href="http://www.cryptopp.com">Crypto++</a><sup><small>TM</small></sup> Library 5.0 Reference Manual
+/*!	\mainpage <a href="http://www.cryptopp.com">Crypto++</a><sup><small>TM</small></sup> Library 5.1 Reference Manual
 <dl>
 <dt>Abstract Base Classes<dd>
 	cryptlib.h
@@ -106,7 +106,7 @@ public:
 		OTHER_ERROR
 	};
 
-	explicit Exception(ErrorType errorType, const std::string &s) : m_what(s) {}
+	explicit Exception(ErrorType errorType, const std::string &s) : m_errorType(errorType), m_what(s) {}
 	virtual ~Exception() throw() {}
 	const char *what() const throw() {return (m_what.c_str());}
 	const std::string &GetWhat() const {return m_what;}
