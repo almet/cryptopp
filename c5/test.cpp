@@ -841,6 +841,7 @@ bool Validate(int alg, bool thorough, const char *seedInput)
 	case 67: result = ValidateCCM(); break;
 	case 68: result = ValidateGCM(); break;
 	case 69: result = ValidateCMAC(); break;
+    case 70: result = ValidateHKDF(); break;
 	default: return false;
 	}
 
